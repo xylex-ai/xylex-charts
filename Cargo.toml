@@ -1,8 +1,12 @@
 [package]
-name = "xylex-charts"
+name = "xylex_charts"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+piston_window = "0.131.0"
+csv = "1.3.0"
+serde = "1.0.195"
+serde_derive = "1.0.195"

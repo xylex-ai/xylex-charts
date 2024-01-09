@@ -1,3 +1,12 @@
+// main.rs
+
+mod render_engine;
+mod utils;
+mod data;
+
+use render_engine::core::initialize_chart;
+
+
 fn main() {
-    println!("Hello, world!");
+    initialize_chart();
 }
