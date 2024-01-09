@@ -8,15 +8,15 @@ pub fn scale_ohlc_data(
     height: u32
 ) -> Vec<OhlcData> {
     // Calculate max and min values
-    let max_price = data.iter().map(
-        |x| x.high).fold(
+    let max_price: f32 = data.iter().map(
+        |x: &OhlcData | x.high).fold(
    f32::MIN,
       f32::max
         );
-    let min_price = data.iter().map(|x| x.low).fold(f32::MAX, f32::min);
+    let min_price: f32 = data.iter().map(|x: &OhlcData| x.low).fold(f32::MAX, f32::min);
 
     // Scale data
-    data.iter().map(|d| OhlcData {
+    data.iter().map(|d: &OhlcData | OhlcData {
         time: d.time,
         open: scale_value(
             d.open,
