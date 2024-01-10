@@ -49,6 +49,8 @@ fn render_candlestick_series(
     let mut vertical_offset: f64 = 0.0;
     let mut is_panning: bool = false;
     let mut last_mouse_pos: Option<[f64; 2]> = None;
+    let scroll_speed: f64 = 25.0;
+
 
     while let Some(event) = window.next() {
         // Debugging
@@ -82,6 +84,11 @@ fn render_candlestick_series(
                 }
                 last_mouse_pos = Some(pos);
             }
+        }
+
+        if let Some(args) = event.mouse_scroll_args() {
+            horizontal_offset += args[1] * scroll_speed;
+            println!("Horizontal offset: {}", horizontal_offset);
         }
 
         window.draw_2d(&event, |context, graphics, _| {
