@@ -51,6 +51,7 @@ fn render_candlestick_series(
     let mut last_mouse_pos: Option<[f64; 2]> = None;
     let mut candle_width: f64 = candle_width;
     let scroll_speed: f64 = 0.25;
+    let window_width: f64 = 1000.0;
 
 
     while let Some(event) = window.next() {
@@ -88,14 +89,17 @@ fn render_candlestick_series(
             candle_width +=  args[1] * scroll_speed;
         }
 
-
-
         // canvas updater
         window.draw_2d(&event, |context, graphics, _| {
             clear([0.0, 0.0, 0.0, 1.0], graphics);
 
-            // Draw OHLC data with offsets
-            for (i, ohlc) in scaled_data.iter().enumerate() {
+            // Improved calculation for the starting index
+            let total_candle_space = candle_width + candle_x_spacing;
+            let start_index = ((-horizontal_offset / total_candle_space).floor() as isize).max(0) as usize;
+            let end_index = ((-horizontal_offset + window_width) / total_candle_space).ceil().min(scaled_data.len() as f64) as usize;
+
+            for i in start_index..end_index {
+                let ohlc = &scaled_data[i];
                 let x_position: f64 = (i as f64 * (candle_width + candle_x_spacing)) + horizontal_offset;
 
                 // Calculate y positions for high and low (wick)
@@ -110,23 +114,12 @@ fn render_candlestick_series(
                 };
 
                 // Draw the wick
-                let wick: Line = line::Line::new(
-                    color,
-                    0.5
-                );
-
-                // plot wick coordinates
+                let wick: Line = line::Line::new(color, 0.5);
                 let wick_coords: [f64; 4] = [x_position + candle_width / 2.0, y_high, x_position + candle_width / 2.0, y_low];
-                wick.draw(
-                    wick_coords,
-                    &Default::default(),
-                    context.transform,
-                    graphics
-                );
+                wick.draw(wick_coords, &Default::default(), context.transform, graphics);
 
                 let y_open: f64 = ohlc.open as f64 + vertical_offset;
                 let y_close: f64 = ohlc.close as f64 + vertical_offset;
-
                 let rect: [f64; 4] = [x_position, y_open, candle_width, y_close - y_open];
 
                 rectangle(color, rect, context.transform, graphics);
