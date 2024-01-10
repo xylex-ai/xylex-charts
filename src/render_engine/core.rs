@@ -49,68 +49,88 @@ fn render_candlestick_series(
     let mut vertical_offset: f64 = 0.0;
     let mut is_panning: bool = false;
     let mut last_mouse_pos: Option<[f64; 2]> = None;
-    let scroll_speed: f64 = 25.0;
+    let mut candle_width: f64 = candle_width;
+    let scroll_speed: f64 = 0.25;
 
 
     while let Some(event) = window.next() {
-        // Debugging
-        if let Some(pos) = event.mouse_cursor_args() {
-            println!("Mouse position: {:?}", pos);
-        }
 
+        // start panning
         if let Some(Button::Mouse(button)) = event.press_args() {
             if button == MouseButton::Left {
                 is_panning = true;
-                println!("Panning started");
             }
         }
 
+        // stop panning
         if let Some(Button::Mouse(button)) = event.release_args() {
             if button == MouseButton::Left {
                 is_panning = false;
                 last_mouse_pos = None;
-                println!("Panning ended");
             }
         }
 
+        // free panning
         if is_panning {
             if let Some(pos) = event.mouse_cursor_args() {
                 if let Some(last_pos) = last_mouse_pos {
-                    let delta_x = pos[0] - last_pos[0];
-                    let delta_y = pos[1] - last_pos[1];
+                    let delta_x: f64 = pos[0] - last_pos[0];
+                    let delta_y: f64 = pos[1] - last_pos[1];
                     horizontal_offset += delta_x;
                     vertical_offset += delta_y;
-                    println!("Offsets: ({}, {})", horizontal_offset, vertical_offset);
                 }
                 last_mouse_pos = Some(pos);
             }
         }
 
+        // horizontal panning
         if let Some(args) = event.mouse_scroll_args() {
-            horizontal_offset += args[1] * scroll_speed;
-            println!("Horizontal offset: {}", horizontal_offset);
+            candle_width +=  args[1] * scroll_speed;
         }
 
+
+
+        // canvas updater
         window.draw_2d(&event, |context, graphics, _| {
             clear([0.0, 0.0, 0.0, 1.0], graphics);
 
             // Draw OHLC data with offsets
             for (i, ohlc) in scaled_data.iter().enumerate() {
                 let x_position: f64 = (i as f64 * (candle_width + candle_x_spacing)) + horizontal_offset;
-                let y_open: f64 = ohlc.open as f64 + vertical_offset;
-                let y_close: f64 = ohlc.close as f64 + vertical_offset;
 
-                let rect: [f64; 4] = [x_position, y_open, candle_width, y_close - y_open];
+                // Calculate y positions for high and low (wick)
+                let y_high: f64 = ohlc.high as f64 + vertical_offset;
+                let y_low: f64 = ohlc.low as f64 + vertical_offset;
+
+                // Calculate candle color
                 let color: [f32; 4] = if ohlc.close > ohlc.open {
                     [0.5843, 0.5961, 0.6314, 1.0] // green
                 } else {
                     [0.3569, 0.6118, 0.9647, 1.0] // red
                 };
 
+                // Draw the wick
+                let wick: Line = line::Line::new(
+                    color,
+                    0.5
+                );
+
+                // plot wick coordinates
+                let wick_coords: [f64; 4] = [x_position + candle_width / 2.0, y_high, x_position + candle_width / 2.0, y_low];
+                wick.draw(
+                    wick_coords,
+                    &Default::default(),
+                    context.transform,
+                    graphics
+                );
+
+                let y_open: f64 = ohlc.open as f64 + vertical_offset;
+                let y_close: f64 = ohlc.close as f64 + vertical_offset;
+
+                let rect: [f64; 4] = [x_position, y_open, candle_width, y_close - y_open];
 
                 rectangle(color, rect, context.transform, graphics);
             }
         });
     }
 }
-
