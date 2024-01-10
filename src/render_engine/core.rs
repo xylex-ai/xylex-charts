@@ -51,7 +51,7 @@ fn render_candlestick_series(
     let mut last_mouse_pos: Option<[f64; 2]> = None;
     let mut candle_width: f64 = candle_width;
     let scroll_speed: f64 = 0.25;
-    let window_width: f64 = 1000.0;
+    let mut window_width = 1000.0;
 
 
     while let Some(event) = window.next() {
@@ -87,6 +87,11 @@ fn render_candlestick_series(
         // horizontal panning
         if let Some(args) = event.mouse_scroll_args() {
             candle_width +=  args[1] * scroll_speed;
+        }
+
+        // get current window width
+        if let Some(size) = event.resize_args() {
+            window_width = size.window_size[0];
         }
 
         // canvas updater
