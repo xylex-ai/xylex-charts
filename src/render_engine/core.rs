@@ -28,7 +28,23 @@ pub fn initialize_chart() {
         480
     );
     let candle_width: f64 = 5.0; // width of each candlestick
+    let candle_x_spacing: f64 = 2.0; // space between each candlestick
 
+    render_candlestick_series(
+        &mut window,
+        &scaled_data,
+        candle_width,
+        candle_x_spacing
+    );
+}
+
+
+fn render_candlestick_series(
+    window: &mut PistonWindow,
+    scaled_data: &Vec<OhlcData>,
+    candle_width: f64,
+    candle_x_spacing: f64
+) {
     while let Some(event) = window.next() {
         window.draw_2d(
             &event,
@@ -44,7 +60,7 @@ pub fn initialize_chart() {
                 ohlc
             ) in scaled_data.iter().enumerate() {
 
-                let x_position: f64 = i as f64 * candle_width; // Calculate x position
+                let x_position: f64 = i as f64 * (candle_width + candle_x_spacing); // Calculate x position
 
                 let y_open: f64 = ohlc.open as f64;
                 let y_close: f64 = ohlc.close as f64;
@@ -57,9 +73,9 @@ pub fn initialize_chart() {
                 ]; // Rectangle parameters
 
                 let color: [f32; 4] = if ohlc.close > ohlc.open {
-                    [0.0, 1.0, 0.0, 1.0] // green
+                    [0.5843, 0.5961, 0.6314, 1.0] // green (9598a1)
                 } else {
-                    [1.0, 0.0, 0.0, 1.0] // red
+                    [0.3569, 0.6118, 0.9647, 1.0] // red (5b9cf6)
                 };
 
                 rectangle(
