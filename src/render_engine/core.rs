@@ -1,14 +1,21 @@
 // render_engine/core.rs
 
+
+
 extern crate piston_window;
 use piston_window::*;
+use dotenv::dotenv;
+use std::env;
 
 use crate::data::csv_parser::read_ohlc_data;
 use crate::render_engine::candle::scale_ohlc_data;
 use crate::utils::struct_model::OhlcData;
+use crate::utils::format_normalizer::convert_hex_color_to_normalized;
 
 
 pub fn initialize_chart() {
+    dotenv().ok();
+
     let mut window: PistonWindow =
         WindowSettings::new(
             "xylex-charts",
@@ -45,16 +52,26 @@ fn render_candlestick_series(
     candle_width: f64,
     candle_x_spacing: f64
 ) {
-    let mut horizontal_offset: f64 = 0.0;
     let mut vertical_offset: f64 = 0.0;
     let mut is_panning: bool = false;
     let mut last_mouse_pos: Option<[f64; 2]> = None;
     let mut candle_width: f64 = candle_width;
-    let scroll_speed: f64 = 0.25;
-    let mut window_width = 1000.0;
+    let scroll_speed: f64 = 0.5;
+    let mut window_width: f64 = 1000.0;
+
+    let min_candle_width: f64 = 1.0;
+    let max_candle_width: f64 = 20.0;
+
+    let mut total_chart_width: f64 = scaled_data.len() as f64 * (candle_width + candle_x_spacing);
+    let mut horizontal_offset: f64 = window_width - total_chart_width;
 
 
     while let Some(event) = window.next() {
+
+        if let Some(size) = event.resize_args() {
+            window_width = size.window_size[0];
+            horizontal_offset = window_width - total_chart_width;
+        }
 
         // start panning
         if let Some(Button::Mouse(button)) = event.press_args() {
@@ -84,10 +101,40 @@ fn render_candlestick_series(
             }
         }
 
-        // horizontal panning
+        // Update zoom and horizontal offset
         if let Some(args) = event.mouse_scroll_args() {
-            candle_width +=  args[1] * scroll_speed;
+            let old_candle_width: f64 = candle_width;
+            let attempted_candle_width: f64 = candle_width + args[1] * scroll_speed;
+
+            if attempted_candle_width <= min_candle_width || attempted_candle_width >= max_candle_width {
+                // If zoom limit is reached, initiate horizontal panning
+                let panning_direction: f64 = if args[1] > 0.0 { -1.0 } else { 1.0 };
+                let panning_speed: f64 = 50.0; // adjust as needed
+                horizontal_offset += panning_direction * panning_speed;
+
+                // Clamp to prevent going out of bounds
+                horizontal_offset = horizontal_offset.clamp(window_width - total_chart_width, 0.0);
+            } else {
+                // Proceed with normal zooming
+                candle_width = attempted_candle_width.clamp(min_candle_width, max_candle_width);
+
+                // Reference point (e.g., center of the window)
+                let reference_point: f64 = window_width / 2.0;
+
+                // Find the position of the reference point in chart units
+                let chart_units: f64 = (reference_point - horizontal_offset) / (old_candle_width + candle_x_spacing);
+
+                // Recalculate total_chart_width
+                total_chart_width = scaled_data.len() as f64 * (candle_width + candle_x_spacing);
+
+                // Adjust horizontal_offset to keep the same data point at the reference point
+                horizontal_offset = reference_point - chart_units * (candle_width + candle_x_spacing);
+
+                // Clamp to prevent going out of bounds
+                horizontal_offset = horizontal_offset.clamp(window_width - total_chart_width, 0.0);
+            }
         }
+
 
         // get current window width
         if let Some(size) = event.resize_args() {
@@ -99,12 +146,12 @@ fn render_candlestick_series(
             clear([0.0, 0.0, 0.0, 1.0], graphics);
 
             // Improved calculation for the starting index
-            let total_candle_space = candle_width + candle_x_spacing;
-            let start_index = ((-horizontal_offset / total_candle_space).floor() as isize).max(0) as usize;
-            let end_index = ((-horizontal_offset + window_width) / total_candle_space).ceil().min(scaled_data.len() as f64) as usize;
+            let total_candle_space: f64 = candle_width + candle_x_spacing;
+            let start_index: usize = ((-horizontal_offset / total_candle_space).floor() as isize).max(0) as usize;
+            let end_index: usize = ((-horizontal_offset + window_width) / total_candle_space).ceil().min(scaled_data.len() as f64) as usize;
 
             for i in start_index..end_index {
-                let ohlc = &scaled_data[i];
+                let ohlc: &OhlcData = &scaled_data[i];
                 let x_position: f64 = (i as f64 * (candle_width + candle_x_spacing)) + horizontal_offset;
 
                 // Calculate y positions for high and low (wick)
@@ -112,11 +159,7 @@ fn render_candlestick_series(
                 let y_low: f64 = ohlc.low as f64 + vertical_offset;
 
                 // Calculate candle color
-                let color: [f32; 4] = if ohlc.close > ohlc.open {
-                    [0.5843, 0.5961, 0.6314, 1.0] // green
-                } else {
-                    [0.3569, 0.6118, 0.9647, 1.0] // red
-                };
+                let color: [f32; 4] = calculate_candle_color(ohlc);
 
                 // Draw the wick
                 let wick: Line = line::Line::new(color, 0.5);
@@ -130,5 +173,24 @@ fn render_candlestick_series(
                 rectangle(color, rect, context.transform, graphics);
             }
         });
+    }
+}
+
+
+fn calculate_candle_color(ohlc: &OhlcData) -> [f32; 4] {
+    let color_candle_up = env::var("COLOR_CANDLE_UP").expect("COLOR_CANDLE_UP not found");
+    let color_candle_down = env::var("COLOR_CANDLE_DOWN").expect("COLOR_CANDLE_DOWN not found");
+
+    let color_candle_up: [f32; 4] = convert_hex_color_to_normalized(
+        &color_candle_up
+    );
+    let color_candle_down: [f32; 4] = convert_hex_color_to_normalized(
+        &color_candle_down
+    );
+
+    if ohlc.close > ohlc.open {
+        color_candle_up
+    } else {
+        color_candle_down
     }
 }
