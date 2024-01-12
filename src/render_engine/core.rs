@@ -4,6 +4,8 @@
 
 extern crate piston_window;
 use piston_window::*;
+use piston_window::{Glyphs, text, Context, G2d};
+
 use dotenv::dotenv;
 use std::env;
 
@@ -57,13 +59,19 @@ fn render_candlestick_series(
     let mut last_mouse_pos: Option<[f64; 2]> = None;
     let mut candle_width: f64 = candle_width;
     let scroll_speed: f64 = 0.5;
-    let mut window_width: f64 = 1000.0;
 
-    let min_candle_width: f64 = 1.0;
-    let max_candle_width: f64 = 20.0;
+    let mut window_width: f64 = 1000.0;
+    let mut window_height: f64 = 480.0;
+
+    let min_price = scaled_data.iter().map(|ohlc| &ohlc.low as &f32).cloned().fold(f32::INFINITY, f32::min);
+    let max_price = scaled_data.iter().map(|ohlc| &ohlc.high as &f32).cloned().fold(f32::NEG_INFINITY, f32::max);
+    let num_price_levels = 5; // You can adjust this based on your preference
 
     let mut total_chart_width: f64 = scaled_data.len() as f64 * (candle_width + candle_x_spacing);
     let mut horizontal_offset: f64 = window_width - total_chart_width;
+
+    let min_candle_width: f64 = 1.0;
+    let max_candle_width: f64 = 20.0;
 
 
     while let Some(event) = window.next() {
@@ -113,46 +121,76 @@ fn render_candlestick_series(
                 horizontal_offset += panning_direction * panning_speed;
 
                 // Clamp to prevent going out of bounds
-                horizontal_offset = horizontal_offset.clamp(window_width - total_chart_width, 0.0);
+                horizontal_offset = horizontal_offset.clamp(
+                    window_width - total_chart_width,
+                    0.0
+                );
+
             } else {
                 // Proceed with normal zooming
-                candle_width = attempted_candle_width.clamp(min_candle_width, max_candle_width);
+                candle_width = attempted_candle_width.clamp(
+                    min_candle_width,
+                    max_candle_width
+                );
 
                 // Reference point (e.g., center of the window)
                 let reference_point: f64 = window_width / 2.0;
 
                 // Find the position of the reference point in chart units
-                let chart_units: f64 = (reference_point - horizontal_offset) / (old_candle_width + candle_x_spacing);
+                let chart_units: f64 = (
+                    reference_point - horizontal_offset) / (old_candle_width + candle_x_spacing
+                );
 
                 // Recalculate total_chart_width
-                total_chart_width = scaled_data.len() as f64 * (candle_width + candle_x_spacing);
+                total_chart_width = scaled_data.len() as f64 * (
+                    candle_width + candle_x_spacing
+                );
 
                 // Adjust horizontal_offset to keep the same data point at the reference point
                 horizontal_offset = reference_point - chart_units * (candle_width + candle_x_spacing);
 
                 // Clamp to prevent going out of bounds
-                horizontal_offset = horizontal_offset.clamp(window_width - total_chart_width, 0.0);
+                horizontal_offset = horizontal_offset.clamp(
+                    window_width - total_chart_width,
+                    0.0
+                );
             }
         }
 
 
         // get current window width
-        if let Some(size) = event.resize_args() {
+        if let Some(
+            size
+        ) = event.resize_args() {
+
             window_width = size.window_size[0];
+            window_height = size.window_size[1];
         }
 
         // canvas updater
-        window.draw_2d(&event, |context, graphics, _| {
-            clear([0.0, 0.0, 0.0, 1.0], graphics);
+        window.draw_2d(
+            &event,
+            |
+            context,
+            graphics, _| {
+            clear(
+                [0.0, 0.0, 0.0, 1.0],
+                graphics
+            );
 
             // Improved calculation for the starting index
             let total_candle_space: f64 = candle_width + candle_x_spacing;
-            let start_index: usize = ((-horizontal_offset / total_candle_space).floor() as isize).max(0) as usize;
-            let end_index: usize = ((-horizontal_offset + window_width) / total_candle_space).ceil().min(scaled_data.len() as f64) as usize;
+            let start_index: usize = (
+                (-horizontal_offset / total_candle_space).floor() as isize).max(0) as usize;
+
+            let end_index: usize = (
+                (-horizontal_offset + window_width) / total_candle_space).ceil().min(scaled_data.len() as f64) as usize;
 
             for i in start_index..end_index {
                 let ohlc: &OhlcData = &scaled_data[i];
-                let x_position: f64 = (i as f64 * (candle_width + candle_x_spacing)) + horizontal_offset;
+                let x_position: f64 = (
+                    i as f64 * (candle_width + candle_x_spacing)
+                ) + horizontal_offset;
 
                 // Calculate y positions for high and low (wick)
                 let y_high: f64 = ohlc.high as f64 + vertical_offset;
@@ -162,28 +200,72 @@ fn render_candlestick_series(
                 let color: [f32; 4] = calculate_candle_color(ohlc);
 
                 // Draw the wick
-                let wick: Line = line::Line::new(color, 0.5);
+                let wick: Line = line::Line::new(
+                    color,
+                    0.5
+                );
                 let wick_coords: [f64; 4] = [x_position + candle_width / 2.0, y_high, x_position + candle_width / 2.0, y_low];
-                wick.draw(wick_coords, &Default::default(), context.transform, graphics);
+                wick.draw(
+                    wick_coords,
+                    &Default::default(),
+                    context.transform,
+                    graphics
+                );
 
                 let y_open: f64 = ohlc.open as f64 + vertical_offset;
                 let y_close: f64 = ohlc.close as f64 + vertical_offset;
                 let rect: [f64; 4] = [x_position, y_open, candle_width, y_close - y_open];
 
-                rectangle(color, rect, context.transform, graphics);
+                rectangle(
+                    color,
+                    rect,
+                    context.transform,
+                    graphics
+                );
             }
+
+            render_price_scale_bar(
+                &context,
+                graphics,
+                min_price as f64,
+                max_price as f64,
+                num_price_levels,
+                vertical_offset,
+                window_height,
+                &mut Glyphs::new(
+                    "assets/FiraSans-Regular.ttf",
+                    window.factory.clone(),
+                    TextureSettings::new()
+                ).unwrap(),
+                window_width
+
+            );
         });
     }
 }
 
 
-fn calculate_candle_color(ohlc: &OhlcData) -> [f32; 4] {
-    let color_candle_up = env::var("COLOR_CANDLE_UP").expect("COLOR_CANDLE_UP not found");
-    let color_candle_down = env::var("COLOR_CANDLE_DOWN").expect("COLOR_CANDLE_DOWN not found");
+fn calculate_candle_color(
+    ohlc: &OhlcData
+) -> [f32; 4] {
+    // fetches the color from the env vars and converts it to normalized rgba
+
+    let color_candle_up: String = env::var(
+        "COLOR_CANDLE_UP"
+    ).expect(
+        "COLOR_CANDLE_UP not found"
+    );
+
+    let color_candle_down: String = env::var(
+        "COLOR_CANDLE_DOWN"
+    ).expect(
+        "COLOR_CANDLE_DOWN not found"
+    );
 
     let color_candle_up: [f32; 4] = convert_hex_color_to_normalized(
         &color_candle_up
     );
+
     let color_candle_down: [f32; 4] = convert_hex_color_to_normalized(
         &color_candle_down
     );
@@ -192,5 +274,50 @@ fn calculate_candle_color(ohlc: &OhlcData) -> [f32; 4] {
         color_candle_up
     } else {
         color_candle_down
+    }
+}
+
+
+fn render_price_scale_bar(
+    context: &Context,
+    graphics: &mut G2d,
+    min_price: f64,
+    max_price: f64,
+    num_price_levels: usize,
+    vertical_offset: f64,
+    window_height: f64,
+    glyph_cache: &mut Glyphs,
+    window_width: f64,
+) {
+    let price_interval = (max_price - min_price) / num_price_levels as f64;
+    let price_scale_text_color = [1.0, 1.0, 1.0, 1.0];
+    let price_scale_font_size = 16.0;
+
+    for i in 0..=num_price_levels {
+        let price = max_price - (i as f64 * price_interval);
+        let y_position = vertical_offset + (price - min_price) * window_height / (max_price - min_price);
+
+        // Draw price level line
+        let line_color = [0.5, 0.5, 0.5, 1.0];
+        line(
+            line_color,
+            0.5,
+            [window_width, y_position, window_width + 50.0, y_position],
+            context.transform,
+            graphics,
+        );
+
+        let price_text = format!("{:.2}", price); // Format the price as needed
+        let transform = context.transform.trans(window_width + 60.0, y_position);
+
+        // Correctly use GlyphCache in the text function
+        text(
+            price_scale_text_color,
+            price_scale_font_size as u32,
+            &price_text,
+            glyph_cache, // Pass the GlyphCache here
+            transform,
+            graphics
+        ).unwrap();
     }
 }

@@ -13,7 +13,12 @@ pub fn scale_ohlc_data(
    f32::MIN,
       f32::max
         );
-    let min_price: f32 = data.iter().map(|x: &OhlcData| x.low).fold(f32::MAX, f32::min);
+    let min_price: f32 = data.iter().map(
+        |x: &OhlcData| x.low
+    ).fold(
+        f32::MAX,
+        f32::min
+    );
 
     // Scale data
     data.iter().map(|d: &OhlcData | OhlcData {
